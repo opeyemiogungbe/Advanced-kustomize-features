@@ -1,331 +1,259 @@
-# Kustomize fundamentals with AwS
-## 📌 Project Overview
+# 🚀 Kubernetes Multi-Environment Deployment with Kustomize (Dev / Staging / Prod on EKS)
 
-This project walks through a **real-world DevOps workflow** where we:
+This project demonstrates a **real-world Kubernetes deployment workflow** using:
 
-* Configure AWS credentials using `aws configure`
-* Provision a fully managed Kubernetes cluster on AWS using `eksctl`
-* Deploy an application (NGINX) using Kubernetes manifests
-* Structure configurations using **Kustomize (Base + Overlays)**
-* Handle environment-specific configurations (dev & prod)
-* Expose the application to the internet using AWS LoadBalancer
-* Debug and troubleshoot common Kubernetes issues
+- Kubernetes (EKS-ready)
+- Kustomize (multi-environment configuration)
+- ConfigMaps & Secrets (application configuration)
+- Environment-based overlays (dev, staging, prod)
+- AWS EKS integration using `eksctl`
+- kubectl deployment workflow
 
-## 🧱 Architecture
+---
+
+# 📌 Project Overview
+
+This project shows how to manage **multiple environments (dev, staging, production)** using Kustomize overlays instead of duplicating YAML files.
+
+It follows DevOps best practices:
+
+- Infrastructure consistency
+- Environment isolation
+- Config separation (ConfigMaps & Secrets)
+- Declarative deployment model
+
+---
+
+## 🏗️ Architecture
+
+``` base/
+├── deployment.yaml
+├── service.yaml
+├── configmap.yaml (generated)
+├── secret.yaml (generated)
+└── kustomization.yaml
+
+overlay/
+├── dev/
+├── staging/
+└── prod/
+```
+
+## ⚙️ Technologies Used
+
+- Kubernetes
+- AWS EKS
+- eksctl
+- Kustomize
+- kubectl
+- Docker (for app containerization)
+- Git & GitHub
+
+
+## 🌍 Environment Strategy
+
+| Environment | Prefix   | Purpose |
+|-------------|----------|---------|
+| Dev         | dev-     | Local testing / development 
+| Staging     | staging- | Pre-production testing 
+| Prod        | prod-    | Production deployment 
+
+
+## 🧩 Key Features
+
+### 1. Kustomize Overlays
+Each environment has its own overlay:
+
+- dev
+- staging
+- prod
+
+Each overlay modifies:
+- Resource names (`namePrefix`)
+- Labels (`commonLabels`)
+- Configurations (environment-specific configurations)
+
+
+
+### 2. ConfigMaps (Application Config)
+
+We use this for non-sensitive configuration such as:
+
+- API URLs
+- environment variables
+- feature flags
+
+Example:
+
+```yaml
+configMapGenerator:
+- name: app-config
+  literals:
+  - API_URL=https://api.example.com
+  - ENV=dev
+```
+
+### 3. Secrets (Sensitive Data)
+
+We use this for saving sensitive credentials:
+
+- usernames
+- passwords
+- tokens
+
+Example:
+
+``` secretGenerator:
+- name: app-secret
+  literals:
+  - username=admin
+  - password=12345
+```
+Kustomize automatically encodes them using base64.
+
+### 4. Name Isolation (namePrefix)
+
+Each environment prefixes resources automatically:
 
 ```
-Internet
-   ↓
-AWS Load Balancer (ELB)
-   ↓
-Kubernetes Service (nginx-service)
-   ↓
-Deployment (nginx)
-   ↓
-Pods (containers)
-   ↓
-Worker Nodes (EC2)
-   ↓
-EKS Control Plane (Managed by AWS)
+dev-nginx-deployment
+staging-nginx-deployment
+prod-nginx-deployment
+```
+This prevents resource collisions across environments.
+
+### 5. Labels (commonLabels)
+
+Used for identification and filtering:
+
+```
+kubectl get pods -l env=staging
 ```
 
-## 🛠️ Tools & Technologies
+## 🚀 Deployment Steps
 
-* AWS EKS
-* eksctl
-* kubectl
-* Kustomize
-* Docker (nginx image)
-* AWS CloudFormation (used internally by eksctl)
+### 1. Clone Repository
+- git clone (https://github.com/our-username/our-repo.git)
+- cd into our root directory
 
-## 📋 Prerequisites
+### 2. Configure AWS CLI (for EKS)
 
-Ensure you have:
+aws configure
 
-* AWS CLI installed and configured:
+### 3. Create EKS Cluster (if not existing)
 
-  ```bash
-  aws configure
-  ```
-* kubectl installed:
-
-  ```bash
-  kubectl version --client
-  ```
-* eksctl installed:
-
-  ```bash
-  eksctl version
-  ```
-
-  [![Aws and installation check](https://i.postimg.cc/tRWFQXgP/Screenshot-2026-04-28-042410.png)]
-
-### Required IAM Permissions
-
-* EKS Full Access
-* EC2 Full Access
-* AWSCloudFormation Full Access
-* IAM Role Creation Permissions
-* AmazonEKSClusterPolicy
-*  AmazonEKSMCPReadOnlyAccess  
-* **AmazonEKSWorkerNodeMinimalPolicy**  
-
-
-## ☁️ Step 1: Create EKS Cluster
-
-We use `eksctl`, which provisions all AWS resources automatically.
-
-```bash
+```
 eksctl create cluster \
---name my-kustomize-cluster \
---region us-east-1 \
---nodegroup-name my-nodes \
---node-type t3.medium \
---nodes 2 \
---nodes-min 1 \
---nodes-max 3 
-We use t2 instances, which are too small and may fail nodegroup creation. t3.medium provides enough CPU/memory for Kubernetes workloads
+  --name my-kustomize-cluster \
+  --region us-east-1
 ```
-[![Screenshot-2026-04-28-055249.png](https://i.postimg.cc/cJGNzMkt/Screenshot-2026-04-28-055249.png)]
-
-[![Screenshot-2026-04-28-055305.png](https://i.postimg.cc/Dy4HK4Xb/Screenshot-2026-04-28-055305.png)]
-
-## ✅ Step 2: Verify Cluster
-
-```bash
-kubectl get svc
-```
-[![Screenshot-2026-04-28-055844.png](https://i.postimg.cc/FH96kW6Z/Screenshot-2026-04-28-055844.png)]
-
-
-## 📁 Project Structure
+### 4. Update kubeconfig
 
 ```
-myapp/
-├── base/
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   └── kustomization.yaml
-│
-├── overlay/
-│   ├── dev/
-│   │   ├── kustomization.yaml
-│   │   └── replica_count.yaml
-│   │
-│   └── prod/
-│       └── kustomization.yaml
+aws eks update-kubeconfig \
+  --region us-east-1 \
+  --name my-kustomize-cluster
 ```
 
-## 🧱 Step 3: Base Configuration (Core App)
+### 5. Verify Cluster
 
-The **base** contains reusable Kubernetes manifests.
-
-### 📄 deployment.yaml
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: nginx
-
-  template:
-    metadata:
-      labels:
-        app: nginx
-
-    spec:
-      containers:
-        - name: nginx
-          image: nginx:1.14.2
-          ports:
-            - containerPort: 80
+```
+kubectl get nodes
+6. Deploy Dev Environment
+kubectl apply -k overlay/dev
 ```
 
-### 📄 base/kustomization.yaml
+### 7. Deploy Staging Environment
 
-```yaml
-resources:
-  - deployment.yaml
 ```
-[![Screenshot-2026-04-29-052329.png](https://i.postimg.cc/DfS4n7yQ/Screenshot-2026-04-29-052329.png)]
-
----
-
-## 🌍 Step 4: Overlay Configuration (Dev Environment)
-
-Overlays: These customize the base per environment.
-
-### 📄 overlay/dev/kustomization.yaml
-
-```yaml
-resources:
-  - ../../base
-
-patchesStrategicMerge:
-  - replica_count.yaml
+kubectl apply -k overlay/staging
 ```
+### 8. Deploy Production Environment
 
-### 📄 overlay/dev/replica_count.yaml
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-
-spec:
-  replicas: 3
 ```
-[![Screenshot-2026-04-29-052547.png](https://i.postimg.cc/qqTPbkmf/Screenshot-2026-04-29-052547.png)]
-
-## 🚀 Step 5: Deploy Application
-
-Deploy using Kustomize:
-
-```bash
-kubectl apply -k overlay/dev/
-```
-
-## 🔍 Step 6: Verify Deployment
-
-```bash
-kubectl get pods
+kubectl apply -k overlay/prod
+📊 Verify Deployments
 kubectl get deployments
-kubectl get svc
-```
-[![Screenshot-2026-04-28-061120.png](https://i.postimg.cc/nVSKGdCt/Screenshot-2026-04-28-061120.png)]
-
-## 🌐 Step 8: Expose Application (Public Access)
-
-```bash
-kubectl expose deployment nginx-deployment \
---type=LoadBalancer \
---name=nginx-service \
---port=80
-```
-
-## 🔗 Step 9: Access Application
-
-```bash
-kubectl get svc
-```
-
-Look for:
-
-```
-EXTERNAL-IP: xxxxx.elb.amazonaws.com
-```
-
-Open in browser:
-
-```
-http://<external-ip>
-```
-
-[![Screenshot-2026-04-28-063741.png](https://i.postimg.cc/cHrRpYbj/Screenshot-2026-04-28-063741.png)]
-
-## 📊 Useful Commands
-
-### Check pod
-
-```bash
 kubectl get pods
+kubectl get services
+```
+## 🔍 Inspect Resources
+
+- Check ConfigMap
+
+```
+kubectl get configmap
+kubectl describe configmap app-config
+```
+- Check Secrets
+```
+kubectl get secrets
+kubectl describe secret app-secret
 ```
 
-### View logs
+## ⚠️ Known Issues & Fixes
 
-```bash
-kubectl logs <pod-name>
+- 1 Immutable Field Error (Deployment selector)
+
+If you see:
 ```
-
-### Stream logs
-
-```bash
-kubectl logs -f <pod-name>
+field is immutable: spec.selector
 ```
-
-### Describe pod (debugging)
-
-```bash
-kubectl describe pod <pod-name>
+Fix:
 ```
-
----
-
-## ⚠️ Troubleshooting
-
-| Issue             | Cause               | Fix                    |
-| ----------------- | ------------------- | ---------------------- |
-| YAML error        | Bad indentation     | Fix spacing            |
-| Pod not found     | Wrong name          | Run `kubectl get pods` |
-| Cannot access app | No LoadBalancer     | Expose service         |
-| Nodegroup stuck   | Small instance type | Use t3.medium          |
-
----
-
-## 🧠 Key Concepts Learned
-
-### 🔹 Kubernetes
-
-* Declarative system (you define the desired state)
-* Deployments manage pods automatically
-
-### 🔹 Kustomize
-
-* Base = reusable configuration
-* Overlay = environment-specific customization
-
-### 🔹 AWS EKS
-
-* Fully managed Kubernetes control plane
-* Uses CloudFormation behind the scenes
-
----
-
-## 🧹 Cleanup (IMPORTANT)
-
-Avoid AWS charges:
-
-```bash
-eksctl delete cluster \
---name my-kustomize-cluster \
---region us-east-1
+kubectl delete deployment <name>
+kubectl apply -k overlay/<env>
 ```
+- 2 kubectl cannot connect to cluster
 
----
+If error:
 
-## 🚀 Future Improvements
+localhost:8080 refused connection
 
-* Add AWS ALB Ingress Controller
-* Configure HTTPS using ACM
-* Implement CI/CD (Jenkins or GitHub Actions)
-* Add staging environment
-* Implement Horizontal Pod Autoscaler (HPA)
+Fix:
+aws eks update-kubeconfig --region us-east-1 --name my-kustomize-cluster
 
----
+3. Deprecated Kustomize fields
 
-## 🎯 Conclusion
+Update old fields:
 
-This project demonstrates a **complete DevOps workflow**:
+Old	                                      New
+bases	                                   resources
+commonLabels	                            labels
+patchesStrategicMerge	                  patches
 
-* Infrastructure provisioning (EKS)
-* Application deployment (Kubernetes)
-* Configuration management (Kustomize)
-* Environment separation (dev/prod)
-* Public exposure (AWS LoadBalancer)
 
----
+## 🧠 Key Learnings
+
+Kustomize enables environment-based Kubernetes deployments
+
+ConfigMaps = application configuration
+
+Secrets = sensitive credentials
+
+namePrefix ensures environment isolation
+
+Kubernetes selectors are immutable
+
+EKS requires correct kubeconfig setup
+
+## 📌 Future Improvements
+
+Integrate Jenkins CI/CD pipeline
+
+Add Helm charts for abstraction
+
+Use AWS Secrets Manager instead of K8s Secrets
+
+Implement ArgoCD GitOps deployment
+
+Add monitoring (Prometheus + Grafana)
 
 ## 👨‍💻 Author
 
-Ope Ogungbe
+Built as part of DevOps learning journey focusing on:
 
-
-
-Give this repo a star ⭐ and feel free to fork it!
+Kubernetes
+AWS EKS
+CI/CD pipelines
+Infrastructure as Code
