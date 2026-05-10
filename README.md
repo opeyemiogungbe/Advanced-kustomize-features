@@ -1,4 +1,4 @@
-# 🚀 Kubernetes Multi-Environment Deployment with Kustomize (Dev / Staging / Prod on EKS)
+# 🚀 Advance Configuration Management with Kustomize and AWS
 
 This project demonstrates a **real-world Kubernetes deployment workflow** using:
 
@@ -8,8 +8,6 @@ This project demonstrates a **real-world Kubernetes deployment workflow** using:
 - Environment-based overlays (dev, staging, prod)
 - AWS EKS integration using `eksctl`
 - kubectl deployment workflow
-
----
 
 # 📌 Project Overview
 
@@ -22,21 +20,30 @@ It follows DevOps best practices:
 - Config separation (ConfigMaps & Secrets)
 - Declarative deployment model
 
----
-
 ## 🏗️ Architecture
 
-``` base/
-├── deployment.yaml
-├── service.yaml
-├── configmap.yaml (generated)
-├── secret.yaml (generated)
-└── kustomization.yaml
-
-overlay/
-├── dev/
-├── staging/
-└── prod/
+```
+myapp/
+├── base/
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── kustomization.yaml
+│
+├── overlay/
+│   │
+│   ├── dev/
+│   │   ├── kustomization.yaml
+│   │   └── replica-count.yaml
+│   │
+│   ├── staging/
+│   │   ├── kustomization.yaml
+│   │   └── replica-count.yaml
+│   │
+│   └── prod/
+│       ├── kustomization.yaml
+│       └── replica-count.yaml
+│
+└── README.md
 ```
 
 ## ⚙️ Technologies Used
@@ -73,7 +80,11 @@ Each overlay modifies:
 - Labels (`commonLabels`)
 - Configurations (environment-specific configurations)
 
+![Screenshot-2026-05-09-233401.png](https://i.postimg.cc/8zNSKn1x/Screenshot-2026-05-09-233401.png)
 
+![Screenshot-2026-05-09-233440.png](https://i.postimg.cc/qRnDd4wD/Screenshot-2026-05-09-233440.png)
+
+![Screenshot-2026-05-09-233426.png](https://i.postimg.cc/Ghz7RMFz/Screenshot-2026-05-09-233426.png)
 
 ### 2. ConfigMaps (Application Config)
 
@@ -113,13 +124,14 @@ Kustomize automatically encodes them using base64.
 
 ### 4. Name Isolation (namePrefix)
 
-Each environment prefixes resources automatically:
+Each environment prefixes resources automatically like:
 
-```
 dev-nginx-deployment
+
 staging-nginx-deployment
+
 prod-nginx-deployment
-```
+
 This prevents resource collisions across environments.
 
 ### 5. Labels (commonLabels)
@@ -138,14 +150,25 @@ kubectl get pods -l env=staging
 
 ### 2. Configure AWS CLI (for EKS)
 
-aws configure
+AWS configure. This helps us to connect our AWS account credentials with our terminal for easy execution of our commands.
 
 ### 3. Create EKS Cluster (if not existing)
 
-```
+```bash
 eksctl create cluster \
-  --name my-kustomize-cluster \
-  --region us-east-1
+--name my-kustomize-cluster \
+--region us-east-1 \
+--nodegroup-name my-nodes \
+--node-type t3.medium \
+--nodes 2 \
+--nodes-min 1 \
+--nodes-max 3 
+We use t3.medium which provides enough CPU/memory for Kubernetes workloads.
+```
+![Screenshot-2026-04-28-055249.png](https://i.postimg.cc/cJGNzMkt/Screenshot-2026-04-28-055249.png)]
+
+![Screenshot-2026-04-28-055305.png](https://i.postimg.cc/Dy4HK4Xb/Screenshot-2026-04-28-055305.png)]
+
 ```
 ### 4. Update kubeconfig
 
@@ -157,39 +180,51 @@ aws eks update-kubeconfig \
 
 ### 5. Verify Cluster
 
+```bash
+kubectl get svc
 ```
-kubectl get nodes
-6. Deploy Dev Environment
+![Screenshot-2026-04-28-055844.png](https://i.postimg.cc/FH96kW6Z/Screenshot-2026-04-28-055844.png)
+
+### 6. Deploy Dev Environment
+   
 kubectl apply -k overlay/dev
-```
+
+![dev deployment](https://i.postimg.cc/k5ThyT4B/Screenshot-2026-04-30-053448.png)
 
 ### 7. Deploy Staging Environment
 
-```
 kubectl apply -k overlay/staging
-```
+
+![Screenshot-2026-04-30-053506.png](https://i.postimg.cc/8PkJ2wPy/Screenshot-2026-04-30-053506.png)
+
 ### 8. Deploy Production Environment
 
-```
 kubectl apply -k overlay/prod
+
+![Screenshot-2026-04-30-045245.png](https://i.postimg.cc/dVyqpTd7/Screenshot-2026-04-30-045245.png)
+
 📊 Verify Deployments
+
 kubectl get deployments
+
 kubectl get pods
+
 kubectl get services
-```
+
+![Screenshot-2026-04-30-054208.png](https://i.postimg.cc/mDDkcrY0/Screenshot-2026-04-30-054208.png)
+
 ## 🔍 Inspect Resources
 
 - Check ConfigMap
-
-```
+- 
 kubectl get configmap
 kubectl describe configmap app-config
-```
+
 - Check Secrets
-```
+
 kubectl get secrets
 kubectl describe secret app-secret
-```
+
 
 ## ⚠️ Known Issues & Fixes
 
@@ -235,7 +270,7 @@ namePrefix ensures environment isolation
 
 Kubernetes selectors are immutable
 
-EKS requires correct kubeconfig setup
+EKS requires a correct kubeconfig setup
 
 ## 📌 Future Improvements
 
